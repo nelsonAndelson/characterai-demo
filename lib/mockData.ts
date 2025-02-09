@@ -1,0 +1,65 @@
+export const mockAnalyticsData = {
+  "24h": {
+    averageResponseTime: 245,
+    responseTimeTrend: 5,
+    totalRequests: 15000,
+    requestsTrend: 12,
+    totalErrors: 150,
+    errorsTrend: -8,
+    errorDistribution: [
+      { name: "Content Filter", value: 80 },
+      { name: "API Failure", value: 45 },
+      { name: "Rate Limit", value: 25 },
+    ],
+    responseTimeTrend: [
+      { date: "00:00", value: 220 },
+      { date: "04:00", value: 230 },
+      { date: "08:00", value: 250 },
+      { date: "12:00", value: 280 },
+      { date: "16:00", value: 260 },
+      { date: "20:00", value: 240 },
+    ],
+  },
+  "7d": {
+    averageResponseTime: 238,
+    responseTimeTrend: -2,
+    totalRequests: 98000,
+    requestsTrend: 8,
+    totalErrors: 980,
+    errorsTrend: -5,
+    errorDistribution: [
+      { name: "Content Filter", value: 520 },
+      { name: "API Failure", value: 310 },
+      { name: "Rate Limit", value: 150 },
+    ],
+    responseTimeTrend: [
+      { date: "Mon", value: 230 },
+      { date: "Tue", value: 240 },
+      { date: "Wed", value: 235 },
+      { date: "Thu", value: 250 },
+      { date: "Fri", value: 245 },
+      { date: "Sat", value: 230 },
+      { date: "Sun", value: 225 },
+    ],
+  },
+  "30d": {
+    averageResponseTime: 242,
+    responseTimeTrend: 1,
+    totalRequests: 450000,
+    requestsTrend: 15,
+    totalErrors: 4200,
+    errorsTrend: -3,
+    errorDistribution: [
+      { name: "Content Filter", value: 2200 },
+      { name: "API Failure", value: 1400 },
+      { name: "Rate Limit", value: 600 },
+    ],
+    responseTimeTrend: [
+      { date: "Week 1", value: 240 },
+      { date: "Week 2", value: 245 },
+      { date: "Week 3", value: 235 },
+      { date: "Week 4", value: 250 },
+    ],
+  },
+}
+
