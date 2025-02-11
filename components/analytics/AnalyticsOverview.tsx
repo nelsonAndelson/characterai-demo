@@ -9,13 +9,19 @@ import ResponseTimeChart from "./ResponseTimeChart";
 
 const timeRanges = ["24h", "7d", "30d"];
 
+interface ResponseTimeTrend {
+  hour: string;
+  avgResponseTime: number;
+  requestCount: number;
+}
+
 interface AnalyticsData {
   metrics: {
     avgResponseTime: number;
     totalRequests: number;
     totalErrors: number;
     errorDistribution: Record<string, number>;
-    responseTrends: Array<{ hour: number; avgResponseTime: number }>;
+    responseTrends: ResponseTimeTrend[];
   };
 }
 
@@ -29,28 +35,36 @@ export default function AnalyticsOverview() {
     const fetchAnalytics = async () => {
       setLoading(true);
       setError(null);
-      console.log("Fetching analytics for timeRange:", timeRange);
 
       try {
         const response = await fetch(`/api/analytics?timeRange=${timeRange}`);
-        console.log("API Response status:", response.status);
 
         if (!response.ok) {
-          throw new Error(`API returned status: ${response.status}`);
+          throw new Error(`Failed to fetch analytics: ${response.statusText}`);
         }
 
-        const data = await response.json();
-        console.log("Received analytics data:", data);
+        const result = await response.json();
 
-        if (!data.metrics) {
-          throw new Error("Response missing metrics data");
+        if (!result.metrics) {
+          throw new Error("Invalid response format: missing metrics data");
         }
 
-        setData(data);
-      } catch (error) {
-        console.error("Failed to fetch analytics:", error);
+        // Validate the response data structure
+        if (
+          typeof result.metrics.avgResponseTime !== "number" ||
+          typeof result.metrics.totalRequests !== "number" ||
+          typeof result.metrics.totalErrors !== "number" ||
+          !Array.isArray(result.metrics.responseTrends) ||
+          typeof result.metrics.errorDistribution !== "object"
+        ) {
+          throw new Error("Invalid response data structure");
+        }
+
+        setData(result);
+      } catch (err) {
+        console.error("Failed to fetch analytics:", err);
         setError(
-          error instanceof Error ? error.message : "Failed to fetch analytics"
+          err instanceof Error ? err.message : "Failed to fetch analytics"
         );
       } finally {
         setLoading(false);
@@ -58,12 +72,16 @@ export default function AnalyticsOverview() {
     };
 
     fetchAnalytics();
+
+    // Refresh data every 5 minutes
+    const interval = setInterval(fetchAnalytics, 5 * 60 * 1000);
+    return () => clearInterval(interval);
   }, [timeRange]);
 
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[400px]">
-        Loading analytics...
+        <p className="text-muted-foreground">Loading analytics...</p>
       </div>
     );
   }
@@ -75,6 +93,31 @@ export default function AnalyticsOverview() {
       </div>
     );
   }
+
+  // Calculate trends for metric cards
+  const calculateTrend = (
+    metric: "avgResponseTime" | "totalRequests" | "totalErrors"
+  ) => {
+    if (
+      !data?.metrics.responseTrends ||
+      data.metrics.responseTrends.length < 2
+    ) {
+      return 0;
+    }
+
+    if (metric === "avgResponseTime") {
+      const trends = data.metrics.responseTrends;
+      const recent = trends[trends.length - 1].avgResponseTime;
+      const previous = trends[trends.length - 2].avgResponseTime;
+      return previous === 0 ? 0 : ((recent - previous) / previous) * 100;
+    }
+
+    // For requests and errors, compare the last hour with the previous hour
+    const trends = data.metrics.responseTrends;
+    const recent = trends[trends.length - 1].requestCount;
+    const previous = trends[trends.length - 2].requestCount;
+    return previous === 0 ? 0 : ((recent - previous) / previous) * 100;
+  };
 
   return (
     <div className="space-y-6">
@@ -92,17 +135,17 @@ export default function AnalyticsOverview() {
         <MetricCard
           title="Average Response Time"
           value={`${Math.round(data?.metrics.avgResponseTime || 0)} ms`}
-          trend={5}
+          trend={calculateTrend("avgResponseTime")}
         />
         <MetricCard
           title="Total Requests"
           value={data?.metrics.totalRequests.toLocaleString() || "0"}
-          trend={12}
+          trend={calculateTrend("totalRequests")}
         />
         <MetricCard
           title="Total Errors"
           value={data?.metrics.totalErrors.toLocaleString() || "0"}
-          trend={-8}
+          trend={calculateTrend("totalErrors")}
           trendDirection="down"
         />
       </div>

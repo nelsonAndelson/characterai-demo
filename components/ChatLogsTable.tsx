@@ -15,10 +15,54 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { supabase } from "@/lib/supabase";
+
+// Utility function for safe date formatting
+function formatTimestamp(timestamp: any): string {
+  if (!timestamp) return "N/A";
+
+  try {
+    // Debug log to see the exact format we're receiving
+    console.log("Raw timestamp:", timestamp, "Type:", typeof timestamp);
+
+    // Extract the timestamp value if it's an object
+    const timestampStr =
+      typeof timestamp === "object" && timestamp !== null
+        ? timestamp.value
+        : timestamp;
+
+    // Try parsing as ISO string
+    const date = new Date(timestampStr);
+
+    if (isNaN(date.getTime())) {
+      console.warn(`Invalid timestamp received:`, {
+        original: timestamp,
+        extracted: timestampStr,
+        type: typeof timestampStr,
+      });
+      return "Invalid Date";
+    }
+
+    return new Intl.DateTimeFormat("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+      timeZone: "UTC",
+    }).format(date);
+  } catch (error) {
+    console.error(`Error formatting timestamp:`, {
+      timestamp,
+      error,
+      type: typeof timestamp,
+    });
+    return "Invalid Date";
+  }
+}
 
 interface ChatLog {
-  id: string;
   user_message: string;
   ai_response: string;
   response_time: number;
@@ -29,47 +73,60 @@ interface ChatLog {
 export default function ChatLogsTable() {
   const [selectedLog, setSelectedLog] = useState<ChatLog | null>(null);
   const [logs, setLogs] = useState<ChatLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchLogs = async () => {
-      const { data, error } = await supabase
-        .from("chat_logs")
-        .select("*")
-        .order("timestamp", { ascending: false });
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await fetch("/api/bigquery?type=recent&limit=50");
 
-      if (error) {
-        console.error("Error fetching logs:", error);
-        return;
-      }
+        if (!response.ok) {
+          throw new Error("Failed to fetch chat logs");
+        }
 
-      if (data) {
-        setLogs(data);
+        const result = await response.json();
+        if (result.data) {
+          // Add debug logging to inspect the data
+          console.log("Received logs:", result.data);
+          console.log("Sample timestamp:", result.data[0]?.timestamp);
+          setLogs(result.data);
+        }
+      } catch (err) {
+        console.error("Error fetching logs:", err);
+        setError(
+          err instanceof Error ? err.message : "Failed to fetch chat logs"
+        );
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchLogs();
 
-    // Set up real-time subscription
-    const subscription = supabase
-      .channel("chat_logs_changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "chat_logs",
-        },
-        (payload) => {
-          console.log("Change received!", payload);
-          fetchLogs(); // Refetch logs when changes occur
-        }
-      )
-      .subscribe();
+    // Set up polling for updates every 30 seconds
+    const interval = setInterval(fetchLogs, 30000);
 
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => clearInterval(interval);
   }, []);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-[200px]">
+        <p className="text-muted-foreground">Loading chat logs...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex justify-center items-center min-h-[200px]">
+        <p className="text-red-500">Error: {error}</p>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -84,16 +141,16 @@ export default function ChatLogsTable() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {logs.map((log) => (
+          {logs.map((log, index) => (
             <TableRow
-              key={log.id}
+              key={index}
               className="cursor-pointer hover:bg-muted/50 transition-colors"
               onClick={() => setSelectedLog(log)}
             >
               <TableCell className="font-medium">{log.user_message}</TableCell>
               <TableCell>{log.ai_response}</TableCell>
               <TableCell>{log.response_time}</TableCell>
-              <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
+              <TableCell>{formatTimestamp(log.timestamp)}</TableCell>
               <TableCell>{log.error_type || "None"}</TableCell>
             </TableRow>
           ))}
@@ -120,7 +177,7 @@ export default function ChatLogsTable() {
             </div>
             <div>
               <h3 className="font-semibold">Timestamp</h3>
-              <p>{selectedLog?.timestamp}</p>
+              <p>{formatTimestamp(selectedLog?.timestamp)}</p>
             </div>
             <div>
               <h3 className="font-semibold">Error Type</h3>

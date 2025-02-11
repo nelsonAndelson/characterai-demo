@@ -25,3 +25,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+# Sentry Config File
+.env.sentry-build-plugin
+
+# Google Cloud service account
+ageless-math-227611-249cfe5db2d5.json
+*.json.key
